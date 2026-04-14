@@ -196,10 +196,11 @@ void WifiStation::HandleScanResult() {
                 .password = ssid_item.password,
                 .channel = best_ap->primary,
                 .authmode = best_ap->authmode,
-                .bssid = {0}
+                .bssid = {0},
+                .has_multiple_same_ssid = (same_ssid_count > 1),
+                .rssi = best_ap->rssi
             };
             memcpy(record.bssid, best_ap->bssid, 6);
-            record.has_multiple_same_ssid = (same_ssid_count > 1);
             connect_queue_.push_back(record);
         }
     }
@@ -231,15 +232,21 @@ void WifiStation::StartConnect() {
     strcpy((char *)wifi_config.sta.password, ap_record.password.c_str());
 
     // If remember_bssid_ is enabled and there's only one AP with this SSID, use remembered BSSID
-    // If there are multiple APs with same SSID (mesh/dual-band), connect to strongest signal
-    if (remember_bssid_ && !ap_record.has_multiple_same_ssid) {
+    // If there are multiple APs with same SSID (mesh/dual-band), force connect to strongest signal
+    if (ap_record.has_multiple_same_ssid) {
+        // Force connection to the strongest AP by setting bssid_set=true
+        ESP_LOGI(TAG, "Multiple APs with same SSID found, connecting to strongest signal (BSSID: %02x:%02x:%02x:%02x:%02x:%02x, RSSI: %d)",
+            ap_record.bssid[0], ap_record.bssid[1], ap_record.bssid[2],
+            ap_record.bssid[3], ap_record.bssid[4], ap_record.bssid[5],
+            ap_record.rssi);
+        wifi_config.sta.channel = ap_record.channel;
+        memcpy(wifi_config.sta.bssid, ap_record.bssid, 6);
+        wifi_config.sta.bssid_set = true;
+    } else if (remember_bssid_) {
         wifi_config.sta.channel = ap_record.channel;
         memcpy(wifi_config.sta.bssid, ap_record.bssid, 6);
         wifi_config.sta.bssid_set = true;
     } else {
-        if (ap_record.has_multiple_same_ssid) {
-            ESP_LOGI(TAG, "Multiple APs with same SSID found, connecting to strongest signal");
-        }
         wifi_config.sta.bssid_set = false;
     }
     wifi_config.sta.listen_interval = 10;

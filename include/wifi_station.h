@@ -24,6 +24,7 @@ struct WifiApRecord {
     wifi_auth_mode_t authmode;
     uint8_t bssid[6];
     bool has_multiple_same_ssid;
+    int8_t rssi;
 };
 
 /**
